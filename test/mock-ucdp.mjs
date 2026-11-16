@@ -10,7 +10,16 @@ const cy = [{ country_cy: "Sudan", country_id_cy: 625, year_cy: 2025 }, { countr
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   console.log("REQ", u.pathname + u.search, "token=" + req.headers["x-ucdp-access-token"]);
-  let rows = u.pathname.includes("organizedviolencecy") ? cy : ged;
+  // Candidate versions that "exist" in the mock. 26.0.10 simulates a newly released month.
+  const ver = u.pathname.split("/").pop();
+  const known = ["26.1", "26.0.9", "26.0.10", "26.01.26.09"];
+  if (u.pathname.includes("gedevents") && !known.includes(ver)) {
+    res.statusCode = 400; return res.end(JSON.stringify({ Message: `Invalid object name 'GEDEvent_v${ver}'` }));
+  }
+  let rows = u.pathname.includes("organizedviolencecy") ? cy
+    : ver === "26.0.10" ? [{ ...ged[0], id: 99, date_end: "2026-10-05", best: 7 }]
+    : ver.startsWith("26.0") || ver.startsWith("26.01") ? ged.map(e => ({ ...e, date_end: e.date_end.replace("2025", "2026") }))
+    : ged;
   const c = u.searchParams.get("Country"); if (c) rows = rows.filter(r => c.split(",").includes(String(r.country_id)));
   const ps = +u.searchParams.get("pagesize"), p = +u.searchParams.get("page");
   res.setHeader("content-type", "application/json");

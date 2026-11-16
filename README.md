@@ -37,11 +37,17 @@ Deploy sker via Cloudflare Workers Builds (Git-kopplingen), som för övriga FOI
 
 **Byta ut adressen**, t.ex. om den spridits utanför FOI: ändra `MCP_PATH_SECRET` i Cloudflare och uppdatera connectorns URL i claude.ai.
 
-## Uppdatera datasetversioner
+## Datasetversioner
 
-UCDP släpper årsversioner (t.ex. `26.1`) en gång per år och GED Candidate varje månad (t.ex. `26.0.9` → `26.0.10`).
-Ändra `GED_VERSION`, `GED_CANDIDATE_VERSION` och `YEARLY_VERSION` i `wrangler.jsonc` och pusha.
-Användare kan också ange `version` direkt i ett verktygsanrop.
+**Årsversioner** (t.ex. `26.1`) släpps en gång per år. Ändra då `GED_VERSION` och `YEARLY_VERSION` i `wrangler.jsonc` och pusha.
+
+**GED Candidate** (preliminär data för innevarande år) sköts automatiskt:
+- UCDP släpper en *månadsfil* varje månad (`26.0.9` = bara september) och en *kumulativ fil* varje kvartal (`26.01.26.09` = januari–september).
+- När någon frågar med `candidate: true` kombinerar servern den senaste kumulativa filen med de månadsfiler som kommit efter den.
+- Nya versioner hittas automatiskt. Servern provar nästa versionsnummer högst en gång per dygn.
+- `GED_CANDIDATE_VERSION` och `GED_CANDIDATE_CUMULATIVE_VERSION` i `wrangler.jsonc` är bara startpunkter och behöver inte uppdateras.
+
+`ucdp_status` visar vilka versioner som används just nu. Användare kan också ange `version` för att fråga exakt en version.
 
 ## Lokal test utan inloggning
 

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
+import { candidateVersionSet, latestCandidateVersions } from "./candidate";
 import { fetchAll, getQuotaUsage, UcdpError, YEARLY_DATASETS, type Filters } from "./ucdp";
 
 const GED_COMPACT_FIELDS = [
@@ -53,13 +54,13 @@ const gedFilterShape = {
 		.boolean()
 		.default(false)
 		.describe(
-			"true = use the preliminary monthly GED Candidate dataset (recent months, not yet in the annual release). false = the stable annual GED release.",
+			"true = use the preliminary GED Candidate data for the current year (not yet in the annual release). The server automatically combines the newest cumulative year-to-date file with any newer monthly files. false = the stable annual GED release (covers up to last year).",
 		),
 	version: z
 		.string()
 		.regex(/^[0-9.]+$/)
 		.optional()
-		.describe("Override the dataset version, e.g. '26.1' or candidate '26.0.9'. Defaults to the server's configured latest."),
+		.describe("Query exactly one dataset version instead of the defaults, e.g. '26.1', a monthly candidate '26.0.9' (that month only) or a cumulative candidate '26.01.26.09' (Jan–Sep). Usually omit."),
 	country_ids: intList.describe(
 		"Gleditsch & Ward country codes (e.g. 500 = Uganda, 520 = Somalia, 365 = Russia, 369 = Ukraine). Use ucdp_find_country if unsure.",
 	),
@@ -83,9 +84,8 @@ const gedFilterShape = {
 const gedFilterSchema = z.object(gedFilterShape);
 type GedFilterArgs = z.infer<typeof gedFilterSchema>;
 
-function gedRequest(args: GedFilterArgs) {
-	const version = args.version ?? (args.candidate ? env.GED_CANDIDATE_VERSION : env.GED_VERSION);
-	const filters: Filters = {
+function gedFilters(args: GedFilterArgs): Filters {
+	return {
 		Country: args.country_ids,
 		StartDate: args.start_date,
 		EndDate: args.end_date,
@@ -97,7 +97,36 @@ function gedRequest(args: GedFilterArgs) {
 			? `${args.bbox.south} ${args.bbox.west},${args.bbox.north} ${args.bbox.east}`
 			: undefined,
 	};
-	return { version, filters };
+}
+
+/** Fetch GED events across one or more versions (candidate = cumulative file + newer monthly files). */
+async function fetchGed(args: GedFilterArgs, maxRecords: number) {
+	const versions = args.version
+		? [args.version]
+		: args.candidate
+			? candidateVersionSet(await latestCandidateVersions(env))
+			: [env.GED_VERSION];
+	const filters = gedFilters(args);
+	const records: Record<string, unknown>[] = [];
+	const seen = new Set<unknown>();
+	let totalCount = 0;
+	let truncated = false;
+	for (const version of versions) {
+		const remaining = maxRecords - records.length;
+		if (remaining <= 0) {
+			truncated = true;
+			break;
+		}
+		const r = await fetchAll(env, undefined, "gedevents", version, filters, remaining);
+		totalCount += r.totalCount;
+		truncated ||= r.truncated;
+		for (const e of r.records) {
+			if (e.id !== undefined && seen.has(e.id)) continue;
+			seen.add(e.id);
+			records.push(e);
+		}
+	}
+	return { versions, records, totalCount, truncated };
 }
 
 function pick(record: Record<string, unknown>, fields: readonly string[]) {
@@ -137,11 +166,10 @@ export function createServer() {
 		},
 		async (args) => {
 			try {
-				const { version, filters } = gedRequest(args);
-				const r = await fetchAll(env, ctx, "gedevents", version, filters, args.max_results);
+				const r = await fetchGed(args, args.max_results);
 				return json({
-					dataset: args.candidate ? "GED Candidate" : "GED",
-					version,
+					dataset: r.versions.some((v) => /^\d+\.0\.|^\d+\.01\./.test(v)) ? "GED Candidate" : "GED",
+					versions: r.versions,
 					total_matching: r.totalCount,
 					returned: r.records.length,
 					truncated: r.truncated,
@@ -193,8 +221,7 @@ export function createServer() {
 		},
 		async (args) => {
 			try {
-				const { version, filters } = gedRequest(args);
-				const r = await fetchAll(env, ctx, "gedevents", version, filters, args.max_events);
+				const r = await fetchGed(args, args.max_events);
 				const groups = new Map<string, Record<string, unknown> & { events: number; best: number; low: number; high: number; civilians: number }>();
 				for (const e of r.records) {
 					const keyParts: Record<string, unknown> = {};
@@ -212,8 +239,8 @@ export function createServer() {
 				}
 				const rows = [...groups.values()].sort((a, b) => b.best - a.best);
 				return json({
-					dataset: args.candidate ? "GED Candidate" : "GED",
-					version,
+					dataset: r.versions.some((v) => /^\d+\.0\.|^\d+\.01\./.test(v)) ? "GED Candidate" : "GED",
+					versions: r.versions,
 					total_matching: r.totalCount,
 					events_aggregated: r.records.length,
 					complete: !r.truncated,
@@ -333,7 +360,10 @@ export function createServer() {
 				return json({
 					default_versions: {
 						ged: env.GED_VERSION,
-						ged_candidate: env.GED_CANDIDATE_VERSION,
+						ged_candidate: await latestCandidateVersions(env).then(
+							(v) => ({ ...v, combined_for_queries: candidateVersionSet(v) }),
+							(e) => `could not determine: ${e.message}`,
+						),
 						yearly: env.YEARLY_VERSION,
 					},
 					quota_today: await getQuotaUsage(env),

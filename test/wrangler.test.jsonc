@@ -4,7 +4,7 @@
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-        "GED_VERSION": "26.1", "GED_CANDIDATE_VERSION": "26.0.9", "YEARLY_VERSION": "26.1",
+        "GED_VERSION": "26.1", "GED_CANDIDATE_VERSION": "26.0.9", "GED_CANDIDATE_CUMULATIVE_VERSION": "26.01.26.09", "YEARLY_VERSION": "26.1",
     "UCDP_PAGE_SIZE": "2", "UCDP_CACHE_TTL_SECONDS": "60",
     "UCDP_DAILY_SOFT_LIMIT": "4500", "UCDP_API_BASE": "http://127.0.0.1:8798/api",
     "UCDP_ACCESS_TOKEN": "test-token",

@@ -5,9 +5,11 @@
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    // Standardversioner. Uppdatera när UCDP släpper nya (se README).
+    // Årsversioner: uppdatera när UCDP släpper ny årsversion (en gång per år).
     "GED_VERSION": "26.1",
+    // Candidate-versioner: lägsta kända. Nyare hittas automatiskt (kollas en gång per dygn).
     "GED_CANDIDATE_VERSION": "26.0.9",
+    "GED_CANDIDATE_CUMULATIVE_VERSION": "26.01.26.09",
     "YEARLY_VERSION": "26.1",
     "UCDP_PAGE_SIZE": "1000",
     "UCDP_CACHE_TTL_SECONDS": "21600",
