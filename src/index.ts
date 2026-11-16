@@ -1,9 +1,7 @@
 import { env } from "cloudflare:workers";
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
-import { handleAccessRequest } from "./access-handler";
 import { fetchAll, getQuotaUsage, UcdpError, YEARLY_DATASETS, type Filters } from "./ucdp";
 
 const GED_COMPACT_FIELDS = [
@@ -350,18 +348,31 @@ export function createServer() {
 	return server;
 }
 
-const mcpHandler = createMcpHandler(createServer);
+const mcpHandler = createMcpHandler(createServer, { route: "/mcp" });
 
-export default new OAuthProvider<Env>({
-	apiHandler: {
-		fetch(request: Request, bindings: Env, ctx: ExecutionContext) {
-			return mcpHandler(request, bindings, ctx);
-		},
-	} satisfies ExportedHandler<Env>,
-	apiRoute: "/mcp",
-	authorizeEndpoint: "/authorize",
-	clientRegistrationEndpoint: "/register",
-	defaultHandler: { fetch: handleAccessRequest as any },
-	tokenEndpoint: "/token",
-	resourceMetadata: { resource: env.MCP_RESOURCE },
-});
+/** Constant-time string comparison so the secret cannot be guessed by timing. */
+function safeEqual(a: string, b: string) {
+	const enc = new TextEncoder();
+	const x = enc.encode(a);
+	const y = enc.encode(b);
+	let diff = x.length ^ y.length;
+	for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+	return diff === 0;
+}
+
+/**
+ * Access control: the server only answers on /mcp/<MCP_PATH_SECRET>. Everything
+ * else gets a plain 404, so the endpoint cannot be found or used without the URL.
+ */
+export default {
+	fetch(request: Request, bindings: Env, ctx: ExecutionContext) {
+		const secret = bindings.MCP_PATH_SECRET ?? "";
+		const url = new URL(request.url);
+		const match = url.pathname.match(/^\/mcp\/([^/]+)\/?$/);
+		if (secret.length < 32 || !match || !safeEqual(match[1], secret)) {
+			return new Response("Not Found", { status: 404 });
+		}
+		url.pathname = "/mcp";
+		return mcpHandler(new Request(url.toString(), request), bindings, ctx);
+	},
+} satisfies ExportedHandler<Env>;

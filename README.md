@@ -4,7 +4,7 @@ En fjärr-MCP-server på Cloudflare Workers som ger Claude läsåtkomst till
 [UCDP:s API](https://ucdp.uu.se/apidocs/) med FOI:s gemensamma API-token.
 
 - **Token stannar på servern.** Den ligger som Worker-hemlighet (`UCDP_ACCESS_TOKEN`) och visas aldrig för användare eller i prompter.
-- **Inloggning med FOI-konto** via Cloudflare Access (OIDC). Claude.ai sköter OAuth-flödet automatiskt.
+- **Hemlig adress.** Servern svarar bara på `/mcp/<MCP_PATH_SECRET>`. Alla andra adresser ger 404, så den som inte har adressen kan inte hitta eller använda servern.
 - **Cache och kvotvakt.** Svar cachas i 6 timmar. Servern slutar anropa UCDP vid 4 500 anrop per UTC-dygn (UCDP:s gräns är 5 000).
 
 ## Verktyg
@@ -19,26 +19,23 @@ En fjärr-MCP-server på Cloudflare Workers som ger Claude läsåtkomst till
 
 ## Driftsättning (första gången)
 
-Deploy sker via Cloudflare Workers Builds (Git-kopplingen), som för övriga FOI-MCP:er. Varje push till `main` deployas.
+Deploy sker via Cloudflare Workers Builds (Git-kopplingen), som för övriga FOI-MCP:er. Varje push till `main` deployas, och KV-namespacet `UCDP_KV` skapas automatiskt.
 
 1. **Koppla repot.** Gå till Cloudflare → Workers & Pages → Create → Import a repository → `SvSProgLead/ucdp-mcp`.
-   Om repot inte syns, ge Cloudflares GitHub-app åtkomst till det (GitHub → Settings → Applications → Cloudflare Workers and Pages).
-   KV-namespacet `OAUTH_KV` skapas automatiskt vid första deployen.
 
-2. **Skapa en Cloudflare Access for SaaS-app** (Zero Trust → Access → Applications → Add → SaaS → OIDC).
-   - Redirect URL: `https://ucdp-mcp.<subdomän>.workers.dev/callback`
-   - Policy: tillåt FOI:s identitetsleverantör eller en lämplig grupp.
-   - Spara Client ID, Client secret, Token-URL, Authorization-URL och JWKS-URL.
+2. **Lägg in två hemligheter.** Det görs under Worker → Settings → Variables and Secrets, typ *Secret*:
+   - `UCDP_ACCESS_TOKEN`: token från UCDP.
+   - `MCP_PATH_SECRET`: en lång slumpsträng med minst 32 tecken, bara bokstäver och siffror. Den kan tas fram med
+     ```bash
+     openssl rand -hex 32
+     ```
+     Utan en giltig `MCP_PATH_SECRET` svarar servern 404 på allt.
 
-3. **Sätt `MCP_RESOURCE`** i `wrangler.jsonc` till `https://ucdp-mcp.<subdomän>.workers.dev/mcp` och pusha.
-
-4. **Lägg in hemligheter.** Det görs under Worker → Settings → Variables and Secrets, typ *Secret*:
-   `UCDP_ACCESS_TOKEN`, `ACCESS_CLIENT_ID`, `ACCESS_CLIENT_SECRET`, `ACCESS_TOKEN_URL`,
-   `ACCESS_AUTHORIZATION_URL`, `ACCESS_JWKS_URL` och `COOKIE_ENCRYPTION_KEY` (en slumpsträng, t.ex. `openssl rand -hex 32`).
-
-5. **Lägg till i Claude för hela organisationen.**
+3. **Lägg till i Claude för hela organisationen.**
    claude.ai → Admin settings → Connectors → Add custom connector. Ange URL:en
-   `https://ucdp-mcp.<subdomän>.workers.dev/mcp`. Varje användare loggar sedan in en gång med sitt FOI-konto.
+   `https://ucdp-mcp.<subdomän>.workers.dev/mcp/<MCP_PATH_SECRET>`.
+
+**Byta ut adressen**, t.ex. om den spridits utanför FOI: ändra `MCP_PATH_SECRET` i Cloudflare och uppdatera connectorns URL i claude.ai.
 
 ## Uppdatera datasetversioner
 
@@ -48,7 +45,8 @@ Användare kan också ange `version` direkt i ett verktygsanrop.
 
 ## Lokal test utan inloggning
 
-`test/` innehåller en mock av UCDP-API:t och en ingång utan autentisering. Den får **aldrig** driftsättas.
+`test/` innehåller en mock av UCDP-API:t och en testkonfiguration med en känd testhemlighet.
+Servern nås då på `http://localhost:8799/mcp/0123456789abcdef0123456789abcdef`.
 
 ```bash
 node test/mock-ucdp.mjs &

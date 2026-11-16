@@ -40,7 +40,7 @@ export class UcdpError extends Error {
 
 export interface UcdpEnv {
 	UCDP_ACCESS_TOKEN: string;
-	OAUTH_KV: KVNamespace;
+	UCDP_KV: KVNamespace;
 	UCDP_PAGE_SIZE?: string;
 	UCDP_CACHE_TTL_SECONDS?: string;
 	UCDP_DAILY_SOFT_LIMIT?: string;
@@ -68,7 +68,7 @@ function quotaKey(date = new Date()) {
 }
 
 export async function getQuotaUsage(env: UcdpEnv) {
-	const used = Number((await env.OAUTH_KV.get(quotaKey())) ?? "0");
+	const used = Number((await env.UCDP_KV.get(quotaKey())) ?? "0");
 	const limit = Number(env.UCDP_DAILY_SOFT_LIMIT ?? "4500");
 	return { used, softLimit: limit, upstreamLimit: 5000, resetsAt: "00:00 UTC" };
 }
@@ -77,8 +77,8 @@ async function countUpstreamCall(env: UcdpEnv) {
 	// KV is eventually consistent, so this is an approximate counter. Good enough
 	// as a safety net against runaway pagination; UCDP enforces the real limit.
 	const key = quotaKey();
-	const used = Number((await env.OAUTH_KV.get(key)) ?? "0") + 1;
-	await env.OAUTH_KV.put(key, String(used), { expirationTtl: 60 * 60 * 48 });
+	const used = Number((await env.UCDP_KV.get(key)) ?? "0") + 1;
+	await env.UCDP_KV.put(key, String(used), { expirationTtl: 60 * 60 * 48 });
 	return used;
 }
 

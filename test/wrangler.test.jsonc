@@ -1,15 +1,15 @@
 {
   "name": "ucdp-mcp-test",
-  "main": "dev-entry.ts",
+  "main": "../src/index.ts",
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "MCP_RESOURCE": "http://localhost:8799/mcp",
-    "GED_VERSION": "26.1", "GED_CANDIDATE_VERSION": "26.0.9", "YEARLY_VERSION": "26.1",
-    "ALLOWED_EMAIL_DOMAINS": "", "UCDP_PAGE_SIZE": "2", "UCDP_CACHE_TTL_SECONDS": "60",
+        "GED_VERSION": "26.1", "GED_CANDIDATE_VERSION": "26.0.9", "YEARLY_VERSION": "26.1",
+    "UCDP_PAGE_SIZE": "2", "UCDP_CACHE_TTL_SECONDS": "60",
     "UCDP_DAILY_SOFT_LIMIT": "4500", "UCDP_API_BASE": "http://127.0.0.1:8798/api",
-    "UCDP_ACCESS_TOKEN": "test-token"
+    "UCDP_ACCESS_TOKEN": "test-token",
+    "MCP_PATH_SECRET": "0123456789abcdef0123456789abcdef"
   },
-  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "test" }],
+  "kv_namespaces": [{ "binding": "UCDP_KV", "id": "test" }],
   "dev": { "port": 8799 }
 }
