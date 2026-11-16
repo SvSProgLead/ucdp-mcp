@@ -18,12 +18,8 @@
     "UCDP_CACHE_TTL_SECONDS": "21600",
     "UCDP_DAILY_SOFT_LIMIT": "4500"
   },
-  "kv_namespaces": [
-    {
-      "binding": "OAUTH_KV",
-      "id": "<KV-ID från: npx wrangler kv namespace create OAUTH_KV>"
-    }
-  ],
+  // Inget id: wrangler skapar KV-namespacet automatiskt vid första deployen.
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
   "observability": { "enabled": true },
   "dev": { "port": 8788 },
   "secrets": {

@@ -19,36 +19,24 @@ En fjärr-MCP-server på Cloudflare Workers som ger Claude läsåtkomst till
 
 ## Driftsättning (första gången)
 
-1. **KV-namespace**
-   ```bash
-   npx wrangler kv namespace create OAUTH_KV
-   ```
-   Klistra in id:t i `wrangler.jsonc`.
+Deploy sker via Cloudflare Workers Builds (Git-kopplingen), som för övriga FOI-MCP:er. Varje push till `main` deployas.
 
-2. **Cloudflare Access for SaaS-app** (Zero Trust → Access → Applications → Add → SaaS → OIDC)
+1. **Koppla repot.** Gå till Cloudflare → Workers & Pages → Create → Import a repository → `SvSProgLead/ucdp-mcp`.
+   Om repot inte syns, ge Cloudflares GitHub-app åtkomst till det (GitHub → Settings → Applications → Cloudflare Workers and Pages).
+   KV-namespacet `OAUTH_KV` skapas automatiskt vid första deployen.
+
+2. **Skapa en Cloudflare Access for SaaS-app** (Zero Trust → Access → Applications → Add → SaaS → OIDC).
    - Redirect URL: `https://ucdp-mcp.<subdomän>.workers.dev/callback`
    - Policy: tillåt FOI:s identitetsleverantör eller en lämplig grupp.
    - Spara Client ID, Client secret, Token-URL, Authorization-URL och JWKS-URL.
 
-3. **`MCP_RESOURCE`** i `wrangler.jsonc` → `https://ucdp-mcp.<subdomän>.workers.dev/mcp`
+3. **Sätt `MCP_RESOURCE`** i `wrangler.jsonc` till `https://ucdp-mcp.<subdomän>.workers.dev/mcp` och pusha.
 
-4. **Hemligheter**
-   ```bash
-   npx wrangler secret put UCDP_ACCESS_TOKEN
-   npx wrangler secret put ACCESS_CLIENT_ID
-   npx wrangler secret put ACCESS_CLIENT_SECRET
-   npx wrangler secret put ACCESS_TOKEN_URL
-   npx wrangler secret put ACCESS_AUTHORIZATION_URL
-   npx wrangler secret put ACCESS_JWKS_URL
-   openssl rand -hex 32 | npx wrangler secret put COOKIE_ENCRYPTION_KEY
-   ```
+4. **Lägg in hemligheter.** Det görs under Worker → Settings → Variables and Secrets, typ *Secret*:
+   `UCDP_ACCESS_TOKEN`, `ACCESS_CLIENT_ID`, `ACCESS_CLIENT_SECRET`, `ACCESS_TOKEN_URL`,
+   `ACCESS_AUTHORIZATION_URL`, `ACCESS_JWKS_URL` och `COOKIE_ENCRYPTION_KEY` (en slumpsträng, t.ex. `openssl rand -hex 32`).
 
-5. **Deploy**
-   - Antingen med `npm run deploy`,
-   - eller automatiskt vid push till `main` via `.github/workflows/deploy.yml`. Det kräver repo-hemligheterna `CLOUDFLARE_API_TOKEN` (behörighet *Edit Cloudflare Workers*) och `CLOUDFLARE_ACCOUNT_ID`.
-   - Workers Builds (Cloudflares egen Git-koppling) går också bra. Ta då bort workflow-filen.
-
-6. **Lägg till i Claude för hela organisationen**
+5. **Lägg till i Claude för hela organisationen.**
    claude.ai → Admin settings → Connectors → Add custom connector. Ange URL:en
    `https://ucdp-mcp.<subdomän>.workers.dev/mcp`. Varje användare loggar sedan in en gång med sitt FOI-konto.
 
